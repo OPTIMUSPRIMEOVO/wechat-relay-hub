@@ -1,5 +1,5 @@
 {
-  "listen_addr": "127.0.0.1:8000",
+  "listen_addr": "0.0.0.0:8000",
   "client_password": "xz1c-secret-2026",
   "node_api_key": "node-static-key-9527",
   "pc_heartbeat_timeout_sec": 15,
