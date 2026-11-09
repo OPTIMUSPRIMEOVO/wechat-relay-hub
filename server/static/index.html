@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>WeChat Relay · XZ1C</title>
+  <style>
+    :root {
+      --bg-main: #ededed;
+      --bg-header: #191919;
+      --text-header: #f5f5f5;
+      --wx-green: #07c160;
+      --wx-green-bubble: #95ec69;
+      --bubble-in: #ffffff;
+      --text-primary: #111111;
+      --text-secondary: #6b7280;
+      --border-color: #d9d9d9;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    /* 主应用容器：严格占满 100dvh，适配 4.6 寸小屏与软键盘弹出 */
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      max-width: 540px;
+      margin: 0 auto;
+      background: var(--bg-main);
+      position: relative;
+    }
+
+    /* 1. 顶部极简状态栏 (40px 高，专为 4.6 寸紧凑屏定制) */
+    .topbar {
+      height: 40px;
+      min-height: 40px;
+      background: var(--bg-header);
+      color: var(--text-header);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      z-index: 20;
+      user-select: none;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .drawer-btn {
+      background: #2c2c2c;
+      color: #fff;
+      border: 1px solid #3d3d3d;
+      border-radius: 5px;
+      padding: 3px 7px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .unread-total-badge {
+      background: var(--danger);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9px;
+      padding: 0 5px;
+      min-width: 16px;
+      text-align: center;
+      display: none;
+    }
+
+    .current-chat-title {
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .node-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #2b2b2b;
+      border: 1px solid #3f3f46;
+      white-space: nowrap;
+    }
+
+    .node-pill.pc-online {
+      border-color: rgba(7, 193, 96, 0.5);
+      color: #6ee7b7;
+    }
+
+    .node-pill.mobile-fallback {
+      border-color: rgba(245, 158, 11, 0.5);
+      color: #fde68a;
+    }
+
+    .ws-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--danger);
+      display: inline-block;
+    }
+    .ws-dot.connected {
+      background: var(--wx-green);
+      box-shadow: 0 0 5px var(--wx-green);
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: #a1a1aa;
+      font-size: 14px;
+      padding: 3px 4px;
+      cursor: pointer;
+    }
+
+    /* 2. 顶部紧凑会话快切栏 (单手大拇指一触即达) */
+    .quick-tabs {
+      height: 34px;
+      min-height: 34px;
+      background: #f7f7f7;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      z-index: 15;
+    }
+    .quick-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 13px;
+      font-size: 12px;
+      background: #e5e7eb;
+      color: #374151;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .tab-chip.active {
+      background: #dcfce7;
+      color: #065f46;
+      border-color: #34d399;
+      font-weight: 600;
+    }
+
+    .tab-chip .badge {
+      background: var(--danger);
+      color: #fff;
+      font-size: 10px;
+      padding: 0 4px;
+      border-radius: 8px;
+      line-height: 14px;
+    }
+
+    .tab-chip.new-chat-btn {
+      background: #1f2937;
+      color: #f9fafb;
+    }
+
+    /* 3. 气泡聊天主视图 */
+    .chat-stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .empty-hint {
+      margin: auto;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 12px;
+      padding: 20px;
+    }
+
+    .msg-row {
+      display: flex;
+      flex-direction: column;
+      max-width: 86%;
+    }
+
+    .msg-row.in {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+
+    .msg-row.out {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+
+    .msg-meta {
+      font-size: 10px;
+      color: #71717a;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 2px;
+    }
+
+    .node-tag {
+      font-size: 9px;
+      padding: 0 4px;
+      border-radius: 3px;
+      background: #e4e4e7;
+      color: #52525b;
+    }
+
+    .node-tag.pc {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .node-tag.mobile {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .msg-bubble {
+      padding: 7px 10px;
+      border-radius: 7px;
+      font-size: 14px;
+      line-height: 1.42;
+      word-break: break-word;
+      white-space: pre-wrap;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+    }
+
+    .msg-row.in .msg-bubble {
+      background: var(--bubble-in);
+      color: var(--text-primary);
+      border-top-left-radius: 2px;
+    }
+
+    .msg-row.out .msg-bubble {
+      background: var(--wx-green-bubble);
+      color: #000;
+      border-top-right-radius: 2px;
+    }
+
+    /* 4. 底部固定输入栏 */
+    .composer {
+      background: #f7f7f7;
+      border-top: 1px solid var(--border-color);
+      padding: 5px 6px;
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      z-index: 20;
+    }
+
+    .composer-input {
+      flex: 1;
+      min-height: 34px;
+      max-height: 84px;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+      background: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      overflow-y: auto;
+    }
+
+    .composer-input:focus {
+      border-color: var(--wx-green);
+    }
+
+    .send-btn {
+      height: 34px;
+      padding: 0 12px;
+      background: var(--wx-green);
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* 5. 侧滑会话抽屉 (点击左上角按钮展开详细最近联系人列表) */
+    .drawer-backdrop {
+      position: absolute;
+      inset: 40px 0 0 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 30;
+      display: none;
+    }
+
+    .drawer-backdrop.open {
+      display: block;
+    }
+
+    .drawer-panel {
+      width: 78%;
+      max-width: 280px;
+      height: 100%;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .drawer-header {
+      padding: 8px 10px;
+      background: #f3f4f6;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .conv-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .conv-item {
+      padding: 8px 10px;
+      border-bottom: 1px solid #f3f4f6;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .conv-item.active {
+      background: #ecfdf5;
+    }
+
+    .conv-item-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .conv-item-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .group-tag {
+      font-size: 9px;
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 0 4px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+
+    .conv-item-sub {
+      font-size: 11px;
+      color: #6b7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .conv-item-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .conv-time {
+      font-size: 10px;
+      color: #9ca3af;
+    }
+
+    /* 6. 弹窗：密码鉴权 & 新建会话 */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.82);
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal-card {
+      background: #fff;
+      width: 100%;
+      max-width: 310px;
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #111827;
+    }
+
+    .modal-desc {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    .field-input {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+      font-size: 13px;
+      margin-bottom: 8px;
+      outline: none;
+    }
+
+    .field-input:focus {
+      border-color: var(--wx-green);
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #374151;
+      margin-bottom: 10px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn-secondary {
+      padding: 6px 11px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      padding: 6px 12px;
+      border: none;
+      background: var(--wx-green);
+      color: #fff;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .error-text {
+      color: var(--danger);
+      font-size: 11px;
+      margin-bottom: 8px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <!-- 顶部紧凑状态栏 -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="drawer-btn" id="toggleDrawerBtn" title="切换会话">
+          <span>☰</span>
+          <span class="unread-total-badge" id="totalUnreadBadge">0</span>
+        </button>
+        <div class="current-chat-title" id="currentChatTitle">未选择会话</div>
+      </div>
+      <div class="topbar-right">
+        <div class="node-pill mobile-fallback" id="nodeStatusPill" title="当前激活的下行发送节点">
+          <span id="nodeStatusIcon">🟡</span>
+          <span id="nodeStatusText">手机备用</span>
+        </div>
+        <span class="ws-dot" id="wsDot" title="WebSocket 实时通道状态"></span>
+        <button class="icon-btn" id="notifyBtn" title="开启新消息通知">🔔</button>
+        <button class="icon-btn" id="logoutBtn" title="修改密码 / 锁定">🔒</button>
+      </div>
+    </header>
+
+    <!-- 顶部单手快切胶囊栏 -->
+    <nav class="quick-tabs" id="quickTabsBar">
+      <button class="tab-chip new-chat-btn" id="openNewChatBtn">＋新会话</button>
+    </nav>
+
+    <!-- 侧滑完整最近联系人抽屉 -->
+    <div class="drawer-backdrop" id="drawerBackdrop">
+      <div class="drawer-panel" id="drawerPanel">
+        <div class="drawer-header">
+          <span>最近联系人会话</span>
+          <button class="btn-secondary" id="drawerNewChatBtn" style="padding:2px 6px;font-size:11px;">＋发起</button>
+        </div>
+        <div class="conv-list" id="drawerConvList"></div>
+      </div>
+    </div>
+
+    <!-- 消息气泡流 -->
+    <main class="chat-stream" id="chatStream">
+      <div class="empty-hint" id="emptyHint">
+        点击上方联系胶囊或「＋新会话」开始收发微信消息<br />
+        <small style="color:#9ca3af;">PC 在线走 PC 端，PC 关机自动走手机通知栏回复</small>
+      </div>
+    </main>
+
+    <!-- 底部固定输入栏 -->
+    <footer class="composer">
+      <textarea
+        id="msgInput"
+        class="composer-input"
+        rows="1"
+        placeholder="输入微信回复内容..."
+        disabled
+      ></textarea>
+      <button id="sendBtn" class="send-btn" disabled>发送</button>
+    </footer>
+  </div>
+
+  <!-- 登录鉴权弹窗 -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal-card">
+      <div class="modal-title">🔐 中枢访问鉴权</div>
+      <div class="modal-desc">请输入服务端配置的 CLIENT_PASSWORD（保存在本地浏览器）</div>
+      <div class="error-text" id="authErrorText">密码校验失败，请重试</div>
+      <input type="password" id="passwordInput" class="field-input" placeholder="输入访问密码..." autocomplete="current-password" />
+      <div class="modal-actions">
+        <button class="btn-primary" id="loginSubmitBtn" style="width:100%;">验证并连接</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手动新建/指定联系人弹窗 -->
+  <div class="modal-overlay" id="newChatModal">
+    <div class="modal-card">
+      <div class="modal-title">💬 发起指定会话</div>
+      <div class="modal-desc">输入微信好友备注/昵称或群聊全名以主动发送消息</div>
+      <input type="text" id="newChatTargetInput" class="field-input" placeholder="好友昵称/备注 或 群名称" />
+      <label class="checkbox-row">
+        <input type="checkbox" id="newChatIsGroupInput" />
+        <span>这是一个微信群聊</span>
+      </label>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelNewChatBtn">取消</button>
+        <button class="btn-primary" id="confirmNewChatBtn">进入对话</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_TOKEN_KEY = "wx_relay_client_token";
+      const STORAGE_LAST_CONV_KEY = "wx_relay_last_conv";
+
+      let clientToken = localStorage.getItem(STORAGE_TOKEN_KEY) || "";
+      let ws = null;
+      let reconnectTimer = null;
+      let pingTimer = null;
+      let titleBlinkTimer = null;
+      const defaultTitle = "WeChat Relay · XZ1C";
+
+      // 状态数据
+      let conversations = []; // [{conv_id, title, is_group, last_sender, last_content, last_timestamp, unread_count}]
+      let activeConvId = localStorage.getItem(STORAGE_LAST_CONV_KEY) || "";
+      let messagesByConv = {}; // {conv_id: [msg, ...]}
+      let nodeStatus = {
+        pc_online: false,
+        active_node: "mobile",
+        active_node_label: "手机备用节点"
+      };
+
+      // DOM 引用
+      const appShell = document.getElementById("appShell");
+      const toggleDrawerBtn = document.getElementById("toggleDrawerBtn");
+      const totalUnreadBadge = document.getElementById("totalUnreadBadge");
+      const currentChatTitle = document.getElementById("currentChatTitle");
+      const nodeStatusPill = document.getElementById("nodeStatusPill");
+      const nodeStatusIcon = document.getElementById("nodeStatusIcon");
+      const nodeStatusText = document.getElementById("nodeStatusText");
+      const wsDot = document.getElementById("wsDot");
+      const notifyBtn = document.getElementById("notifyBtn");
+      const logoutBtn = document.getElementById("logoutBtn");
+      const quickTabsBar = document.getElementById("quickTabsBar");
+      const openNewChatBtn = document.getElementById("openNewChatBtn");
+      const drawerBackdrop = document.getElementById("drawerBackdrop");
+      const drawerConvList = document.getElementById("drawerConvList");
+      const drawerNewChatBtn = document.getElementById("drawerNewChatBtn");
+      const chatStream = document.getElementById("chatStream");
+      const msgInput = document.getElementById("msgInput");
+      const sendBtn = document.getElementById("sendBtn");
+
+      const authModal = document.getElementById("authModal");
+      const passwordInput = document.getElementById("passwordInput");
+      const authErrorText = document.getElementById("authErrorText");
+      const loginSubmitBtn = document.getElementById("loginSubmitBtn");
+
+      const newChatModal = document.getElementById("newChatModal");
+      const newChatTargetInput = document.getElementById("newChatTargetInput");
+      const newChatIsGroupInput = document.getElementById("newChatIsGroupInput");
+      const cancelNewChatBtn = document.getElementById("cancelNewChatBtn");
+      const confirmNewChatBtn = document.getElementById("confirmNewChatBtn");
+
+      // ==================== 1. 移动端软键盘视口自适应 (Sony XZ1 Compact) ====================
+      if (window.visualViewport) {
+        const syncViewportHeight = () => {
+          appShell.style.height = window.visualViewport.height + "px";
+          scrollToBottom(false);
+        };
+        window.visualViewport.addEventListener("resize", syncViewportHeight);
+      }
+
+      // ==================== 2. 鉴权与 API 封装 ====================
+      async function apiFetch(path, options = {}) {
+        const headers = Object.assign(
+          {
+            "Content-Type": "application/json",
+            "X-Client-Token": clientToken
+          },
+          options.headers || {}
+        );
+        const resp = await fetch(path, Object.assign({}, options, { headers }));
+        if (resp.status === 401) {
+          showAuthModal(true);
+          throw new Error("Unauthorized");
+        }
+        return resp.json();
+      }
+
+      function showAuthModal(hasError = false) {
+        authErrorText.style.display = hasError ? "block" : "none";
+        authModal.classList.add("show");
+        setTimeout(() => passwordInput.focus(), 80);
+      }
+
+      async function verifyAndLogin(pwd) {
+        try {
+          const resp = await fetch("/api/auth/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pwd })
+          });
+          if (!resp.ok) {
+            showAuthModal(true);
+            return;
+          }
+          const data = await resp.json();
+          clientToken = pwd;
+          localStorage.setItem(STORAGE_TOKEN_KEY, clientToken);
+          authModal.classList.remove("show");
+          if (data.node_status) {
+            updateNodeStatusUI(data.node_status);
+          }
+          await loadInitialConversations();
+          connectWebSocket();
+        } catch (err) {
+          showAuthModal(true);
+        }
+      }
+
+      // ==================== 3. 节点状态栏与通知提醒 ====================
+      function updateNodeStatusUI(statusObj) {
+        if (!statusObj) return;
+        nodeStatus = statusObj;
+        if (statusObj.pc_online) {
+          nodeStatusPill.className = "node-pill pc-online";
+          nodeStatusIcon.textContent = "🟢";
+          nodeStatusText.textContent = "PC 主节点";
+        } else {
+          nodeStatusPill.className = "node-pill mobile-fallback";
+          nodeStatusIcon.textContent = "🟡";
+          nodeStatusText.textContent = "手机备用";
+        }
+      }
+
+      function triggerNewMessageAlert(msg) {
+        // 1. 标题闪烁提醒
+        if (document.hidden && !titleBlinkTimer) {
+          let flag = false;
+          titleBlinkTimer = setInterval(() => {
+            document.title = flag ? defaultTitle : `【新消息】${msg.sender}`;
+            flag = !flag;
+          }, 900);
+        }
+
+        // 2. 浏览器原生通知 (Web Notification API)
+        if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+          const title = msg.is_group ? `[${msg.room_name}] ${msg.sender}` : msg.sender;
+          try {
+            new Notification(title, {
+              body: msg.content,
+              tag: msg.conv_id,
+              renotify: true
+            });
+          } catch (_) {}
+        }
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && titleBlinkTimer) {
+          clearInterval(titleBlinkTimer);
+          titleBlinkTimer = null;
+          document.title = defaultTitle;
+        }
+      });
+
+      notifyBtn.addEventListener("click", async () => {
+        if (!("Notification" in window)) {
+          alert("当前浏览器不支持 Web Notification API");
+          return;
+        }
+        const perm = await Notification.requestPermission();
+        notifyBtn.textContent = perm === "granted" ? "🔔" : "🔕";
+      });
+
+      // ==================== 4. 会话列表与消息流渲染 ====================
+      function formatShortTime(ts) {
+        if (!ts) return "";
+        const d = new Date(ts * 1000);
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+
+      function upsertConversationFromMessage(msg, isCurrentActive) {
+        const idx = conversations.findIndex((c) => c.conv_id === msg.conv_id);
+        const title = msg.is_group && msg.room_name ? msg.room_name : (msg.title || msg.sender);
+        if (idx >= 0) {
+          const conv = conversations[idx];
+          conv.last_sender = msg.sender;
+          conv.last_content = msg.content;
+          conv.last_timestamp = msg.timestamp;
+          if (msg.direction === "in" && !isCurrentActive) {
+            conv.unread_count = (conv.unread_count || 0) + 1;
+          } else if (isCurrentActive) {
+            conv.unread_count = 0;
+          }
+          conversations.splice(idx, 1);
+          conversations.unshift(conv);
+        } else {
+          conversations.unshift({
+            conv_id: msg.conv_id,
+            title: title,
+            is_group: Boolean(msg.is_group),
+            last_sender: msg.sender,
+            last_content: msg.content,
+            last_timestamp: msg.timestamp,
+            unread_count: msg.direction === "in" && !isCurrentActive ? 1 : 0
+          });
+        }
+      }
+
+      function renderConversationBars() {
+        // 统计总未读数
+        const totalUnread = conversations.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+        if (totalUnread > 0) {
+          totalUnreadBadge.style.display = "inline-block";
+          totalUnreadBadge.textContent = totalUnread > 99 ? "99+" : String(totalUnread);
+        } else {
+          totalUnreadBadge.style.display = "none";
+        }
+
+        // 1. 顶部胶囊快切栏
+        quickTabsBar.innerHTML = "";
+        quickTabsBar.appendChild(openNewChatBtn);
+
+        conversations.forEach((conv) => {
+          const chip = document.createElement("button");
+          chip.className = "tab-chip" + (conv.conv_id === activeConvId ? " active" : "");
+          const nameSpan = document.createElement("span");
+          nameSpan.textContent = conv.title;
+          chip.appendChild(nameSpan);
+
+          if (conv.unread_count > 0) {
+            const b = document.createElement("span");
+            b.className = "badge";
+            b.textContent = conv.unread_count;
+            chip.appendChild(b);
+          }
+          chip.addEventListener("click", () => selectConversation(conv.conv_id));
+          quickTabsBar.appendChild(chip);
+        });
+
+        // 2. 侧滑抽屉完整列表
+        drawerConvList.innerHTML = "";
+        if (conversations.length === 0) {
+          const empty = document.createElement("div");
+          empty.style.cssText = "padding:16px;text-align:center;color:#9ca3af;font-size:12px;";
+          empty.textContent = "暂无最近会话";
+          drawerConvList.appendChild(empty);
+          return;
+        }
+
+        conversations.forEach((conv) => {
+          const item = document.createElement("div");
+          item.className = "conv-item" + (conv.conv_id === activeConvId ? " active" : "");
+
+          const main = document.createElement("div");
+          main.className = "conv-item-main";
+
+          const titleRow = document.createElement("div");
+          titleRow.className = "conv-item-title";
+          if (conv.is_group) {
+            const gTag = document.createElement("span");
+            gTag.className = "group-tag";
+            gTag.textContent = "群";
+            titleRow.appendChild(gTag);
+          }
+          const tSpan = document.createElement("span");
+          tSpan.textContent = conv.title;
+          titleRow.appendChild(tSpan);
+
+          const subRow = document.createElement("div");
+          subRow.className = "conv-item-sub";
+          subRow.textContent = conv.is_group
+            ? `${conv.last_sender}: ${conv.last_content}`
+            : conv.last_content;
+
+          main.appendChild(titleRow);
+          main.appendChild(subRow);
+
+          const right = document.createElement("div");
+          right.className = "conv-item-right";
+
+          const timeEl = document.createElement("span");
+          timeEl.className = "conv-time";
+          timeEl.textContent = formatShortTime(conv.last_timestamp);
+          right.appendChild(timeEl);
+
+          if (conv.unread_count > 0) {
+            const b = document.createElement("span");
+            b.className = "unread-total-badge";
+            b.style.display = "inline-block";
+            b.textContent = conv.unread_count;
+            right.appendChild(b);
+          }
+
+          item.appendChild(main);
+          item.appendChild(right);
+          item.addEventListener("click", () => {
+            drawerBackdrop.classList.remove("open");
+            selectConversation(conv.conv_id);
+          });
+          drawerConvList.appendChild(item);
+        });
+      }
+
+      async function selectConversation(convId) {
+        activeConvId = convId;
+        localStorage.setItem(STORAGE_LAST_CONV_KEY, convId);
+
+        const conv = conversations.find((c) => c.conv_id === convId);
+        if (conv) {
+          conv.unread_count = 0;
+          currentChatTitle.textContent = conv.is_group ? `[群] ${conv.title}` : conv.title;
+          msgInput.disabled = false;
+          sendBtn.disabled = false;
+          msgInput.placeholder = `发送给 ${conv.title}...`;
+        }
+
+        renderConversationBars();
+
+        try {
+          const res = await apiFetch(`/api/messages?conv_id=${encodeURIComponent(convId)}&limit=80`);
+          messagesByConv[convId] = res.messages || [];
+          renderChatStream();
+        } catch (_) {
+          renderChatStream();
+        }
+      }
+
+      function renderChatStream() {
+        chatStream.innerHTML = "";
+        const list = messagesByConv[activeConvId] || [];
+        if (!activeConvId || list.length === 0) {
+          const hint = document.createElement("div");
+          hint.className = "empty-hint";
+          hint.textContent = activeConvId ? "暂无聊天记录，发一条消息试试吧" : "请选择或新建一个微信会话";
+          chatStream.appendChild(hint);
+          return;
+        }
+
+        list.forEach((msg) => {
+          chatStream.appendChild(createMessageNode(msg));
+        });
+        scrollToBottom(false);
+      }
+
+      function createMessageNode(msg) {
+        const row = document.createElement("div");
+        const dir = msg.direction === "out" ? "out" : "in";
+        row.className = `msg-row ${dir}`;
+
+        const meta = document.createElement("div");
+        meta.className = "msg-meta";
+
+        const senderSpan = document.createElement("span");
+        senderSpan.textContent = dir === "out" ? "我" : msg.sender;
+
+        const timeSpan = document.createElement("span");
+        timeSpan.textContent = formatShortTime(msg.timestamp);
+
+        const nodeBadge = document.createElement("span");
+        const isPc = (msg.source_node || "").toLowerCase() === "pc";
+        nodeBadge.className = `node-tag ${isPc ? "pc" : "mobile"}`;
+        nodeBadge.textContent = isPc ? "PC" : "手机";
+
+        meta.appendChild(senderSpan);
+        meta.appendChild(timeSpan);
+        meta.appendChild(nodeBadge);
+
+        const bubble = document.createElement("div");
+        bubble.className = "msg-bubble";
+        bubble.textContent = msg.content;
+
+        row.appendChild(meta);
+        row.appendChild(bubble);
+        return row;
+      }
+
+      function appendMessageToActiveView(msg) {
+        if (!messagesByConv[msg.conv_id]) {
+          messagesByConv[msg.conv_id] = [];
+        }
+        // 避免相同 ID 重复加入
+        if (msg.id && messagesByConv[msg.conv_id].some((m) => m.id === msg.id)) {
+          return;
+        }
+        messagesByConv[msg.conv_id].push(msg);
+
+        if (msg.conv_id === activeConvId) {
+          const empty = chatStream.querySelector(".empty-hint");
+          if (empty) empty.remove();
+          chatStream.appendChild(createMessageNode(msg));
+          scrollToBottom(true);
+        }
+      }
+
+      function scrollToBottom(smooth = false) {
+        requestAnimationFrame(() => {
+          chatStream.scrollTo({
+            top: chatStream.scrollHeight,
+            behavior: smooth ? "smooth" : "auto"
+          });
+        });
+      }
+
+      // ==================== 5. WebSocket 连接与自动重连 ====================
+      function connectWebSocket() {
+        if (!clientToken) {
+          showAuthModal(false);
+          return;
+        }
+        if (ws) {
+          try { ws.close(); } catch (_) {}
+        }
+
+        const proto = location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${proto}//${location.host}/ws/client?token=${encodeURIComponent(clientToken)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          wsDot.classList.add("connected");
+          if (pingTimer) clearInterval(pingTimer);
+          pingTimer = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ action: "ping" }));
+            }
+          }, 15000);
+        };
+
+        ws.onmessage = (evt) => {
+          try {
+            const packet = JSON.parse(evt.data);
+            if (packet.node_status) {
+              updateNodeStatusUI(packet.node_status);
+            }
+            if (packet.type === "node_status" && packet.data) {
+              updateNodeStatusUI(packet.data);
+            } else if (packet.type === "pong" && packet.data) {
+              updateNodeStatusUI(packet.data);
+            } else if (packet.type === "new_message" && packet.data) {
+              const msg = packet.data;
+              const isCurrent = msg.conv_id === activeConvId && !document.hidden;
+              if (!activeConvId) {
+                activeConvId = msg.conv_id;
+                localStorage.setItem(STORAGE_LAST_CONV_KEY, activeConvId);
+              }
+              upsertConversationFromMessage(msg, msg.conv_id === activeConvId);
+              appendMessageToActiveView(msg);
+              renderConversationBars();
+              if (msg.conv_id === activeConvId) {
+                const conv = conversations.find((c) => c.conv_id === activeConvId);
+                if (conv) {
+                  currentChatTitle.textContent = conv.is_group ? `[群] ${conv.title}` : conv.title;
+                  msgInput.disabled = false;
+                  sendBtn.disabled = false;
+                }
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ action: "mark_read", conv_id: activeConvId }));
+                }
+              }
+              if (!isCurrent) {
+                triggerNewMessageAlert(msg);
+              }
+            } else if (packet.type === "outbound_message" && packet.data) {
+              const msg = packet.data;
+              upsertConversationFromMessage(msg, true);
+              appendMessageToActiveView(msg);
+              renderConversationBars();
+            }
+          } catch (e) {
+            console.error("WS parse error", e);
+          }
+        };
+
+        ws.onclose = (evt) => {
+          wsDot.classList.remove("connected");
+          if (pingTimer) clearInterval(pingTimer);
+          if (evt.code === 1008) {
+            showAuthModal(true);
+            return;
+          }
+          clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connectWebSocket, 3000);
+        };
+      }
+
+      async function loadInitialConversations() {
+        try {
+          const data = await apiFetch("/api/conversations");
+          conversations = data.conversations || [];
+          if (data.node_status) {
+            updateNodeStatusUI(data.node_status);
+          }
+          renderConversationBars();
+          if (activeConvId && conversations.some((c) => c.conv_id === activeConvId)) {
+            await selectConversation(activeConvId);
+          } else if (conversations.length > 0) {
+            await selectConversation(conversations[0].conv_id);
+          }
+        } catch (_) {}
+      }
+
+      // ==================== 6. 发送回复与交互事件 ====================
+      async function handleSendReply() {
+        const text = msgInput.value.trim();
+        if (!text || !activeConvId) return;
+
+        const conv = conversations.find((c) => c.conv_id === activeConvId);
+        if (!conv) return;
+
+        sendBtn.disabled = true;
+        const payload = {
+          target: conv.title,
+          content: text,
+          is_group: Boolean(conv.is_group),
+          room_name: conv.is_group ? conv.title : "",
+          conv_id: conv.conv_id
+        };
+
+        try {
+          msgInput.value = "";
+          msgInput.style.height = "34px";
+          await apiFetch("/api/reply", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+        } catch (err) {
+          msgInput.value = text;
+          alert("发送失败，请检查网络连接");
+        } finally {
+          sendBtn.disabled = false;
+          msgInput.focus();
+        }
+      }
+
+      sendBtn.addEventListener("click", handleSendReply);
+
+      msgInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSendReply();
+        }
+      });
+
+      msgInput.addEventListener("input", () => {
+        msgInput.style.height = "34px";
+        msgInput.style.height = Math.min(msgInput.scrollHeight, 84) + "px";
+      });
+
+      toggleDrawerBtn.addEventListener("click", () => {
+        drawerBackdrop.classList.toggle("open");
+      });
+
+      drawerBackdrop.addEventListener("click", (e) => {
+        if (e.target === drawerBackdrop) {
+          drawerBackdrop.classList.remove("open");
+        }
+      });
+
+      function openNewChatDialog() {
+        drawerBackdrop.classList.remove("open");
+        newChatTargetInput.value = "";
+        newChatIsGroupInput.checked = false;
+        newChatModal.classList.add("show");
+        setTimeout(() => newChatTargetInput.focus(), 80);
+      }
+
+      openNewChatBtn.addEventListener("click", openNewChatDialog);
+      drawerNewChatBtn.addEventListener("click", openNewChatDialog);
+      cancelNewChatBtn.addEventListener("click", () => newChatModal.classList.remove("show"));
+
+      confirmNewChatBtn.addEventListener("click", () => {
+        const target = newChatTargetInput.value.trim();
+        const isGroup = newChatIsGroupInput.checked;
+        if (!target) return;
+
+        const convId = (isGroup ? "group:" : "user:") + target;
+        if (!conversations.some((c) => c.conv_id === convId)) {
+          conversations.unshift({
+            conv_id: convId,
+            title: target,
+            is_group: isGroup,
+            last_sender: target,
+            last_content: "新建会话",
+            last_timestamp: Math.floor(Date.now() / 1000),
+            unread_count: 0
+          });
+        }
+        newChatModal.classList.remove("show");
+        selectConversation(convId);
+      });
+
+      loginSubmitBtn.addEventListener("click", () => {
+        const pwd = passwordInput.value.trim();
+        if (pwd) verifyAndLogin(pwd);
+      });
+
+      passwordInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const pwd = passwordInput.value.trim();
+          if (pwd) verifyAndLogin(pwd);
+        }
+      });
+
+      logoutBtn.addEventListener("click", () => {
+        passwordInput.value = clientToken;
+        showAuthModal(false);
+      });
+
+      // 启动入口
+      if (!clientToken) {
+        showAuthModal(false);
+      } else {
+        loadInitialConversations().then(() => connectWebSocket());
+      }
+    })();
+  </script>
+</body>
+</html>

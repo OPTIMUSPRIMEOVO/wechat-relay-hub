@@ -1,0 +1,9 @@
+{
+  "listen_addr": "127.0.0.1:8000",
+  "client_password": "xz1c-secret-2026",
+  "node_api_key": "node-static-key-9527",
+  "pc_heartbeat_timeout_sec": 15,
+  "dedup_ttl_sec": 5,
+  "max_messages_per_conv": 200,
+  "data_file": "relay_store.json"
+}

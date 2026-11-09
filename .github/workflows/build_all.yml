@@ -1,0 +1,62 @@
+name: Build VAIO Server (.exe) & XZ1 Android App (.apk)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-vaio-windows-server:
+    name: Build Go Windows Server (.exe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Windows 64-bit & 32-bit Executables (Zero CGO)
+        working-directory: ./server_go
+        run: |
+          go mod tidy
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o wechat-relay-hub.exe .
+          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags="-s -w" -o wechat-relay-hub-x86.exe .
+
+      - name: Upload VAIO Windows Server Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: vaio-windows-server-bundle
+          path: |
+            server_go/wechat-relay-hub.exe
+            server_go/wechat-relay-hub-x86.exe
+            server_go/config.json
+            server_go/windows_vaio_deploy/*
+
+  build-xz1-android-apk:
+    name: Build Sony XZ1 Compact APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Assemble Debug APK
+        working-directory: ./android_xz1_app
+        run: gradle assembleDebug --no-daemon
+
+      - name: Upload Sony XZ1 Compact APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sony-xz1-compact-apk
+          path: android_xz1_app/app/build/outputs/apk/debug/app-debug.apk

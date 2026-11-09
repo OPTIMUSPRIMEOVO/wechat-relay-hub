@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+relay_store.json
+relay_store.json.tmp
+android_xz1_app/.gradle/
+android_xz1_app/build/
+android_xz1_app/app/build/
+android_xz1_app/local.properties
