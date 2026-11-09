@@ -226,12 +226,22 @@ class PCRelayAgent:
         while not self._stop_event.is_set():
             try:
                 logger.info("Connecting to Relay Hub WS: %s", self.base_url)
-                async with websockets.connect(
-                    self.ws_url,
-                    additional_headers={"X-API-Key": self.api_key},
-                    ping_interval=15,
-                    ping_timeout=15,
-                ) as ws:
+                # 兼容不同版本 websockets (Python 3.10-3.13)
+                try:
+                    connect_ctx = websockets.connect(
+                        self.ws_url,
+                        extra_headers={"X-API-Key": self.api_key},
+                        ping_interval=15,
+                        ping_timeout=15,
+                    )
+                except TypeError:
+                    connect_ctx = websockets.connect(
+                        self.ws_url,
+                        ping_interval=15,
+                        ping_timeout=15,
+                    )
+
+                async with connect_ctx as ws:
                     logger.info("Connected to Relay Hub as PC Primary Node (🟢 PC_ONLINE)")
                     backoff = 2.0
 
@@ -300,11 +310,45 @@ class PCRelayAgent:
             except Exception:
                 await asyncio.sleep(0.5)
 
+    async def wxauto_message_listener_loop(self) -> None:
+        """若启用 wxauto，定时从 PC 微信监听新收到的消息并上报至中枢"""
+        if self.bridge.driver != "wxauto" or not self.bridge._wxauto:
+            return
+        wx = self.bridge._wxauto
+        logger.info("wxauto message listener loop started (listening for PC WeChat messages)...")
+        while not self._stop_event.is_set():
+            try:
+                msgs = await asyncio.to_thread(wx.GetNewMessage)
+                if msgs and isinstance(msgs, dict):
+                    for chat_name, msg_list in msgs.items():
+                        for item in msg_list:
+                            content = ""
+                            actual_sender = chat_name
+                            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                actual_sender = str(item[0]) if item[0] else chat_name
+                                content = str(item[1])
+                            elif hasattr(item, "sender") and hasattr(item, "content"):
+                                actual_sender = item.sender
+                                content = item.content
+                            elif isinstance(item, str):
+                                content = item
+                            if content.strip():
+                                await self.push_incoming_message(
+                                    sender=actual_sender,
+                                    content=content.strip(),
+                                    is_group=False,
+                                    room_name="",
+                                )
+            except Exception as exc:
+                logger.debug("wxauto poll error: %s", exc)
+            await asyncio.sleep(1.0)
+
     async def run_forever(self) -> None:
         await asyncio.gather(
             self.http_heartbeat_loop(),
             self.ws_node_loop(),
             self.wcferry_message_listener_loop(),
+            self.wxauto_message_listener_loop(),
         )
 
 
