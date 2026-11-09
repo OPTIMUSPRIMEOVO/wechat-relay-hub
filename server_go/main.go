@@ -39,7 +39,7 @@ type Config struct {
 
 func loadConfig(cfgPath string) Config {
 	cfg := Config{
-		ListenAddr:            "127.0.0.1:8000",
+		ListenAddr:            "0.0.0.0:8000",
 		ClientPassword:        "xz1c-secret-2026",
 		NodeAPIKey:            "node-static-key-9527",
 		PCHeartbeatTimeoutSec: 15.0,
@@ -48,8 +48,20 @@ func loadConfig(cfgPath string) Config {
 		DataFile:              "relay_store.json",
 	}
 
-	if data, err := os.ReadFile(cfgPath); err == nil {
-		_ = json.Unmarshal(data, &cfg)
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		log.Printf("[Config] config.json not found at %s (%v), using default 0.0.0.0:8000", cfgPath, err)
+	} else {
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			log.Printf("[Config ERROR] Failed to parse %s: %v (Please check JSON syntax)", cfgPath, err)
+		} else {
+			log.Printf("[Config] Successfully loaded configuration from %s", cfgPath)
+		}
+	}
+
+	// 容错处理：如果用户只写了 "0.0.0.0" 没带端口，自动补齐 ":8000"
+	if !strings.Contains(cfg.ListenAddr, ":") {
+		cfg.ListenAddr = cfg.ListenAddr + ":8000"
 	}
 
 	if v := os.Getenv("LISTEN_ADDR"); v != "" {
